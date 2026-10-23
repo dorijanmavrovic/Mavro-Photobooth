@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MAVRO Photobooth">
+<title>MAVRO Photobooth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--black:#0b0b0b;--gold:#b68e3f;--gold-d:#896b2f;--gold-l:#d9bb78;--text:#f1e6cc;
+--serif:"Cormorant Garamond",Georgia,"Times New Roman",serif}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#070707;color:var(--text);font-family:var(--serif);font-size:18px}
+/* pozadina: zavjesa u sjeni + sitno zrno + vignette */
+body::before{content:"";position:fixed;inset:0;z-index:-1;
+background:
+ radial-gradient(ellipse at 50% 30%,rgba(182,142,63,.13),transparent 55%),
+ radial-gradient(ellipse at 50% 50%,transparent 35%,rgba(0,0,0,.92) 100%),
+ url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+ repeating-linear-gradient(90deg,#0d0c0a 0 14px,#17140f 14px 30px,#0a0908 30px 46px,#13110c 46px 64px)}
+html,body{height:100%;overflow:hidden}
+body{display:flex;align-items:center;justify-content:center;padding:28px 16px;text-align:center}
+.app{display:flex;align-items:center;justify-content:center;gap:28px;width:100%}
+.booth{flex:none;width:clamp(280px,calc((100dvh - 378px)*4/3 + 64px),560px);max-width:100%;display:flex;flex-direction:column;align-items:center;gap:16px;
+background:linear-gradient(#17140f,#0b0b0b);border:10px solid var(--gold);border-radius:34px 34px 10px 10px;
+padding:22px 22px 26px;box-shadow:0 0 0 3px #000,0 40px 90px rgba(0,0,0,.95),0 0 60px rgba(182,142,63,.12),inset 0 0 50px rgba(0,0,0,.85)}
+.sign{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding-bottom:12px;border-bottom:3px solid var(--gold)}
+.sign b{font-size:3.2rem;line-height:1;font-weight:700;letter-spacing:.22em;padding-left:.22em;color:var(--gold)}
+.sign span{font-size:1rem;font-weight:500;letter-spacing:.62em;padding-left:.62em;color:var(--gold-l)}
+.stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:6px solid var(--gold);border-radius:6px;overflow:hidden;box-shadow:0 0 0 3px #000,inset 0 0 30px #000}
+video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#count{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(4rem,12dvh,9rem);font-weight:700;color:var(--gold-l);text-shadow:0 4px 24px rgba(0,0,0,.7);pointer-events:none}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
+#flash.on{opacity:1;transition:none}
+#dots{display:flex;justify-content:center;gap:14px}
+#dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--gold);background:transparent}
+#dots i.done{background:var(--gold)}
+button{font:inherit;font-weight:700;font-size:1.15rem;letter-spacing:.08em;min-width:200px;padding:10px 28px;border:3px solid var(--gold);border-radius:2px;background:var(--gold);color:var(--black);cursor:pointer}
+button.alt{background:transparent;color:var(--gold-l)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible{outline:3px solid var(--text);outline-offset:3px}
+#msg{min-height:1.4em;font-size:1.05rem;font-style:italic;color:var(--gold-l)}
+
+/* rezultat: uvijek unutar ekrana, pored kabine */
+.result{display:none;align-items:center;gap:20px;--H:calc(100dvh - 64px)}
+.result.show{display:flex}
+.paper{display:flex;flex-direction:column;align-items:center}
+.slot{height:16px;width:calc((var(--H) - 20px)*500/1560 + 28px);background:#000;border:4px solid var(--gold);border-radius:8px 8px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.8)}
+.clip{overflow:hidden;padding-bottom:6px}
+#strip{display:block;height:calc(var(--H) - 20px);width:auto;max-width:46vw;object-fit:contain;box-shadow:0 12px 26px rgba(0,0,0,.8)}
+#strip.eject{animation:eject 1.6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes eject{from{transform:translateY(-102%)}to{transform:none}}
+.side{display:flex;flex-direction:column;align-items:center;gap:14px;width:200px}
+.side button{width:100%;min-width:0;padding:10px 12px}
+#qrbox{display:none;background:#fff;color:var(--black);padding:10px;border:6px solid var(--gold);width:100%}
+#qrbox svg{width:100%;height:auto;display:block}
+#qrbox p{margin:6px 0 0;font-weight:700;font-size:.95rem;line-height:1.2}
+
+#ptbtn{position:fixed;top:10px;right:10px;z-index:10;min-width:0;font-size:.9rem;padding:6px 12px;display:none}
+#dbg{position:fixed;left:10px;bottom:10px;z-index:10;max-width:min(440px,92vw);font:12px monospace;color:#d9bb78;background:rgba(0,0,0,.85);border:1px solid #896b2f;padding:6px;display:none}
+#log{max-height:30vh;overflow:auto;margin:6px 0 0;white-space:pre-wrap;text-align:left}
+.btns{display:flex;flex-direction:column;gap:10px;width:100%}
+.qrwait{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-weight:700;animation:pulse 1.4s ease-in-out infinite}
+.qrwait button{min-width:0;padding:8px 14px;background:var(--black);color:var(--gold-l);font-size:1rem}
+@keyframes pulse{50%{opacity:.45}}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+#qrbox.pop{animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+#closeres{display:none;position:absolute;top:10px;left:10px;min-width:0;width:44px;height:44px;padding:0;border-radius:50%;font-size:1.3rem;line-height:1}
+
+/* mobitel i tablet: rezultat preko cijelog ekrana, QR na vrhu i velik */
+@media (max-width:1100px){
+  .result{position:fixed;inset:0;z-index:5;flex-direction:column;justify-content:flex-start;align-items:center;
+    padding:60px 16px 24px;gap:16px;background:rgba(5,5,5,.96);overflow-y:auto;--H:calc(min(44dvh,520px) + 20px)}
+  .result>*{flex:none}
+  #closeres{display:block}
+  .side{display:contents}
+  #qrbox{order:1;width:min(64vw,270px)}
+  .paper{order:2}
+  .btns{order:3;flex-direction:row;flex-wrap:wrap;justify-content:center;max-width:440px}
+  .btns button{width:auto;flex:1 1 130px;min-width:0}
+}
+/* tablet u landscape: traka lijevo, QR i gumbi desno */
+@media (max-width:1100px) and (min-width:641px) and (orientation:landscape){
+  .result{flex-direction:row;justify-content:center;align-items:center;gap:28px;padding:20px;--H:calc(100dvh - 64px)}
+  .side{display:flex;flex-direction:column;align-items:center;gap:16px;width:260px}
+  #qrbox{width:100%}
+  .btns{flex-direction:column;max-width:none;width:100%}
+  .btns button{flex:none;width:100%}
+}
+@media (max-height:700px){
+  .sign b{font-size:2.4rem}.booth{padding:14px 18px 18px;gap:10px}
+}
+@media (prefers-reduced-motion:reduce){#flash{transition:none}#strip.eject,#qrbox.pop,.qrwait{animation:none}}
+</style>
+</head>
+<body>
+<button id="ptbtn" class="alt">Spoji printer</button>
+<details id="dbg"><summary>Dnevnik printera</summary><pre id="log"></pre></details>
+<div class="app">
+<section class="booth">
+  <div class="sign"><b>MAVRO</b><span>PHOTOGRAPHY</span></div>
+  <div class="stage">
+    <video id="cam" autoplay playsinline muted></video>
+    <div id="count"></div>
+    <div id="flash"></div>
+  </div>
+  <div id="dots"><i></i><i></i><i></i><i></i></div>
+  <button id="start">Slikaj 4 slike</button>
+  <div id="msg">Dopusti pristup kameri pa pritisni gumb.</div>
+</section>
+<div class="result" id="result">
+  <button id="closeres" class="alt" aria-label="Zatvori">✕</button>
+  <div class="paper">
+    <div class="slot"></div>
+    <div class="clip"><canvas id="strip" width="500" height="1560"></canvas></div>
+  </div>
+  <div class="side">
+    <div id="qrbox"><div id="qr"></div><p>Skeniraj mobitelom i preuzmi slike</p></div>
+    <div class="btns">
+      <button id="prt" style="display:none">Printaj</button>
+      <button id="dl">Preuzmi traku</button>
+      <button id="again" class="alt">Ponovi</button>
+    </div>
+  </div>
+</div>
+</div>
+<canvas id="shot" width="440" height="330" hidden></canvas>
+<script>
+// ---- POSTAVKE ----
+// Adresa tvog servera koji prima sliku (POST, polje "file") i vraca JSON {"url":"https://..."}.
+// Dok je prazno, aplikacija radi bez QR koda (samo preuzimanje).
+const CLOUDINARY_CLOUD = "kk1fyhss";   // npr. "mavro-photo"  (Cloud name s Cloudinary nadzorne ploce)
+const CLOUDINARY_PRESET = "Photobooth";  // naziv "unsigned" upload preseta
+const UPLOAD_URL = "";         // alternativa: vlastiti server (upload.php), ako ne koristis Cloudinary
+const SHOTS = 4, COUNTDOWN = 3;
+const FONT = "'Cormorant Garamond',Georgia,serif";
+
+const $ = id => document.getElementById(id);
+const cam = $("cam"), strip = $("strip"), shot = $("shot");
+const sctx = strip.getContext("2d"), hctx = shot.getContext("2d");
+const dots = [...document.querySelectorAll("#dots i")];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let frames = [], stripBlob = null, busy = false;
+
+async function initCam(){
+  try{
+    cam.srcObject = await navigator.mediaDevices.getUserMedia({video:{width:1280,height:960,facingMode:"user"},audio:false});
+  }catch(e){
+    $("msg").textContent = "Kamera nije dostupna. Provjeri dozvole preglednika (potreban je https ili localhost).";
+    $("start").disabled = true;
+  }
+}
+
+function grab(){
+  const vw = cam.videoWidth, vh = cam.videoHeight, tr = shot.width/shot.height;
+  let sw = vw, sh = vw/tr;
+  if(sh > vh){ sh = vh; sw = vh*tr; }
+  hctx.save();
+  hctx.translate(shot.width,0); hctx.scale(-1,1);
+  hctx.drawImage(cam,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,shot.width,shot.height);
+  hctx.restore();
+  const c = document.createElement("canvas");
+  c.width = shot.width; c.height = shot.height;
+  c.getContext("2d").drawImage(shot,0,0);
+  return c;
+}
+
+async function flash(){
+  const f = $("flash"); f.classList.add("on");
+  await sleep(60); f.classList.remove("on");
+}
+
+async function run(){
+  if(busy) return; busy = true;
+  frames = []; dots.forEach(d => d.classList.remove("done"));
+  $("result").classList.remove("show"); $("qrbox").style.display = "none";
+  $("start").style.display = "none";
+  for(let i=0;i<SHOTS;i++){
+    $("msg").textContent = "Slika " + (i+1) + " od " + SHOTS;
+    for(let n=COUNTDOWN;n>0;n--){ $("count").textContent = n; await sleep(1000); }
+    $("count").textContent = "";
+    frames.push(grab()); dots[i].classList.add("done");
+    await flash(); await sleep(500);
+  }
+  await buildStrip();
+  busy = false;
+}
+
+async function buildStrip(){
+  try{ await document.fonts.load("700 56px 'Cormorant Garamond'"); await document.fonts.load("500 20px 'Cormorant Garamond'"); }catch(e){}
+  const W = strip.width, H = strip.height, pw = 412, ph = 309, x = (W-pw)/2, y0 = 46, gap = 18;
+  // puni zlatni okvir + crna unutrasnjost
+  sctx.fillStyle = "#b68e3f"; sctx.fillRect(0,0,W,H);
+  sctx.fillStyle = "#0b0b0b"; sctx.fillRect(14,14,W-28,H-28);
+  // slike s punim zlatnim rubom
+  frames.forEach((c,i) => {
+    const y = y0 + i*(ph+gap);
+    sctx.drawImage(c, x, y, pw, ph);
+    sctx.strokeStyle = "#b68e3f"; sctx.lineWidth = 4; sctx.strokeRect(x-2, y-2, pw+4, ph+4);
+  });
+  // tekst ispod slika, nista ne prelazi preko njih
+  const end = y0 + SHOTS*ph + (SHOTS-1)*gap + 2;   // donji rub zadnje slike
+  sctx.textAlign = "center"; sctx.textBaseline = "alphabetic";
+  sctx.fillStyle = "#b68e3f"; sctx.font = "700 62px " + FONT;
+  if("letterSpacing" in sctx) sctx.letterSpacing = "12px";
+  sctx.fillText("MAVRO", W/2 + 6, end + 82);
+  sctx.fillStyle = "#d9bb78"; sctx.font = "500 20px " + FONT;
+  if("letterSpacing" in sctx) sctx.letterSpacing = "11px";
+  sctx.fillText("PHOTOGRAPHY", W/2 + 5, end + 120);
+  if("letterSpacing" in sctx) sctx.letterSpacing = "0px";
+  sctx.fillStyle = "#b68e3f"; sctx.fillRect(W/2-50, end + 146, 100, 3);
+  sctx.fillStyle = "#d9bb78"; sctx.font = "500 24px " + FONT;
+  sctx.fillText(new Date().toLocaleDateString("hr-HR"), W/2, end + 184);
+  $("result").classList.add("show");
+  strip.classList.remove("eject"); void strip.offsetWidth; strip.classList.add("eject");
+  stripBlob = await new Promise(r => strip.toBlob(r, "image/jpeg", 0.92));
+  $("msg").textContent = "Gotovo!";
+  setPS($("ptbtn").textContent);
+  if(pChar) printStrip();
+  await makeQR();
+}
+
+async function makeQR(){
+  if(!UPLOAD_URL && !CLOUDINARY_CLOUD){
+    $("msg").textContent = "Gotovo! QR kod se ukljucuje kad postavis Cloudinary ili UPLOAD_URL u kodu.";
+    return;
+  }
+  const box = $("qrbox"), qrEl = $("qr");
+  box.classList.remove("pop"); box.style.display = "block";
+  qrEl.innerHTML = '<div class="qrwait">Spremam slike…</div>';
+  $("msg").textContent = "Spremam slike...";
+  try{
+    const fd = new FormData(); fd.append("file", stripBlob, "mavro-photobooth.jpg");
+    let url;
+    if(CLOUDINARY_CLOUD){
+      fd.append("upload_preset", CLOUDINARY_PRESET);
+      const r = await fetch("https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD + "/image/upload", {method:"POST", body:fd});
+      url = (await r.json()).secure_url;
+    }else{
+      const r = await fetch(UPLOAD_URL, {method:"POST", body:fd});
+      url = (await r.json()).url;
+    }
+    if(!url) throw new Error("no url");
+    const qr = qrcode(0, "M"); qr.addData(url); qr.make();
+    qrEl.innerHTML = qr.createSvgTag({cellSize:6, margin:0, scalable:true});
+    box.classList.add("pop");
+    $("msg").textContent = "Skeniraj QR kod mobitelom.";
+  }catch(e){
+    qrEl.innerHTML = '<div class="qrwait">Spremanje nije uspjelo.<button id="retry" type="button">Pokušaj ponovo</button></div>';
+    $("retry").onclick = makeQR;
+    $("msg").textContent = "Spremanje nije uspjelo.";
+  }
+}
+
+
+// ================= PRINTER (Web Bluetooth, "cat printer" protokol - EKSPERIMENTALNO) =================
+const PRINT_ENERGY = 24000;   // jacina ispisa: vise = tamnije (npr. 18000 - 30000)
+const PRINT_W = 384;          // sirina papira u tockama (58 mm printeri)
+const PRINT_PHOTO_W = 288;    // sirina slika na papiru; smanji (npr. 240) ako se ispis prekida
+const PRINT_DELAY = 25;       // pauza izmedju paketa u ms; povecaj (npr. 40) ako se ispis prekida
+const BT_SERVICES = ["0000ae30-0000-1000-8000-00805f9b34fb","0000af30-0000-1000-8000-00805f9b34fb",
+  "0000ff00-0000-1000-8000-00805f9b34fb","0000ffe0-0000-1000-8000-00805f9b34fb","000018f0-0000-1000-8000-00805f9b34fb"];
+let pChar = null, pBusy = false, wChunk = 100;
+const logEl = $("log");
+function plog(m){ logEl.textContent += m + "\n"; logEl.scrollTop = logEl.scrollHeight; console.log(m); }
+function setPS(txt){
+  $("ptbtn").textContent = txt;
+  $("prt").style.display = (pChar && stripBlob) ? "" : "none";
+}
+const CRC = new Uint8Array(256);
+for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c=(c&0x80)?(((c<<1)^0x07)&0xFF):((c<<1)&0xFF); CRC[i]=c; }
+function crc8(d){ let c=0; for(const b of d) c=CRC[(c^b)&0xFF]; return c; }
+function pkt(cmd,data){
+  const n=data.length, o=new Uint8Array(8+n);
+  o.set([0x51,0x78,cmd,0x00,n&255,n>>8]); o.set(data,6); o[6+n]=crc8(data); o[7+n]=0xFF; return o;
+}
+async function connectPrinter(){
+  try{
+    const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices:BT_SERVICES});
+    dev.addEventListener("gattserverdisconnected",()=>{ pChar=null; setPS("Printer: odspojen"); plog("odspojen"); });
+    plog("Spajam: " + (dev.name||"?"));
+    const srv = await dev.gatt.connect();
+    let found = null;
+    for(const s of await srv.getPrimaryServices()){
+      plog("servis " + s.uuid);
+      for(const c of await s.getCharacteristics()){
+        const pr = c.properties;
+        plog("  char " + c.uuid + " [" + ["write","writeWithoutResponse","notify"].filter(k=>pr[k]).join(",") + "]");
+        if(!found && (pr.writeWithoutResponse||pr.write) && /(ae01|af01|ff02|ffe1)/.test(c.uuid)) found = c;
+      }
+    }
+    if(!found) throw new Error("Nisam nasao karakteristiku za ispis (posalji mi ovaj dnevnik)");
+    pChar = found; plog("koristim " + found.uuid);
+    setPS("Printer: spojen");
+  }catch(e){ plog("GRESKA: " + e.message); setPS("Printer: greska, probaj opet"); }
+}
+async function pwrite(bytes){
+  for(let i=0;i<bytes.length;){
+    const part = bytes.slice(i, i+wChunk);
+    try{
+      if(pChar.properties.writeWithoutResponse) await pChar.writeValueWithoutResponse(part);
+      else await pChar.writeValueWithResponse(part);
+      i += part.length; await sleep(PRINT_DELAY);
+    }catch(e){
+      if(wChunk > 20){ wChunk = 20; plog("smanjujem paket na 20 B"); } else throw e;
+    }
+  }
+}
+// crno-bijela verzija trake za termalni printer (bijela pozadina, crni okvir, dithering)
+function buildPrintCanvas(){
+  const W=PRINT_W, pw=PRINT_PHOTO_W, ph=Math.round(pw*3/4), gap=8, y0=16, px=Math.round((W-pw)/2);
+  const end = y0 + SHOTS*ph + (SHOTS-1)*gap, H = end + 112;
+  const c = document.createElement("canvas"); c.width=W; c.height=H;
+  const x = c.getContext("2d");
+  x.fillStyle="#fff"; x.fillRect(0,0,W,H);
+  x.strokeStyle="#000"; x.lineWidth=4; x.strokeRect(3,3,W-6,H-6);
+  frames.forEach((f,i)=>{
+    const y = y0 + i*(ph+gap);
+    x.drawImage(f, px, y, pw, ph);
+    x.lineWidth=3; x.strokeRect(px-1.5, y-1.5, pw+3, ph+3);
+  });
+  x.fillStyle="#000"; x.textAlign="center";
+  x.font="700 44px "+FONT; if("letterSpacing" in x) x.letterSpacing="7px";
+  x.fillText("MAVRO", W/2+3, end+50);
+  x.font="500 15px "+FONT; if("letterSpacing" in x) x.letterSpacing="6px";
+  x.fillText("PHOTOGRAPHY", W/2+3, end+76);
+  if("letterSpacing" in x) x.letterSpacing="0px";
+  x.font="500 18px "+FONT; x.fillText(new Date().toLocaleDateString("hr-HR"), W/2, end+100);
+  return c;
+}
+function toBitmapRows(c){
+  const w=c.width, h=c.height, d=c.getContext("2d").getImageData(0,0,w,h).data, g=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){ const j=i*4, v=(0.299*d[j]+0.587*d[j+1]+0.114*d[j+2])/255; g[i]=255*Math.pow(v,0.75); }
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=y*w+x, o=g[i], n=o<128?0:255, e=o-n; g[i]=n;
+    if(x+1<w) g[i+1]+=e*7/16;
+    if(y+1<h){ if(x>0) g[i+w-1]+=e*3/16; g[i+w]+=e*5/16; if(x+1<w) g[i+w+1]+=e/16; }
+  }
+  const rows=[];
+  for(let y=0;y<h;y++){
+    const r=new Uint8Array(w/8);
+    for(let x=0;x<w;x++) if(g[y*w+x]<128) r[x>>3] |= (1<<(x&7));
+    rows.push(r);
+  }
+  return rows;
+}
+async function printStrip(){
+  if(!pChar || !frames.length || pBusy) return;
+  pBusy = true; $("prt").disabled = true;
+  try{
+    plog("pripremam ispis...");
+    const rows = toBitmapRows(buildPrintCanvas());
+    const parts = [
+      pkt(0xA4,[0x32]),
+      pkt(0xAF,[PRINT_ENERGY&255, PRINT_ENERGY>>8]),
+      pkt(0xBD,[32]),
+      pkt(0xBE,[0x00]),
+      pkt(0xA6,[0xAA,0x55,0x17,0x38,0x44,0x5F,0x5F,0x5F,0x44,0x38,0x2C])
+    ];
+    rows.forEach(r=>parts.push(pkt(0xA2,r)));
+    parts.push(pkt(0xA1,[96,0]));
+    parts.push(pkt(0xA6,[0xAA,0x55,0x17,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x17]));
+    const len = parts.reduce((a,b)=>a+b.length,0), all = new Uint8Array(len);
+    let o=0; for(const p of parts){ all.set(p,o); o+=p.length; }
+    plog("saljem " + rows.length + " redaka (" + len + " B)");
+    $("msg").textContent = "Printam...";
+    await pwrite(all);
+    plog("poslano"); $("msg").textContent = "Poslano na printer.";
+  }catch(e){ plog("GRESKA ispisa: " + e.message); $("msg").textContent = "Ispis nije uspio (vidi dnevnik)."; }
+  pBusy = false; $("prt").disabled = false;
+}
+if("bluetooth" in navigator){
+  $("ptbtn").style.display = "block"; $("dbg").style.display = "block";
+  $("ptbtn").onclick = connectPrinter;
+  $("prt").onclick = printStrip;
+}
+
+$("closeres").onclick = () => {
+  $("result").classList.remove("show"); $("start").style.display = "";
+  $("msg").textContent = "Spremno za novo slikanje.";
+};
+$("start").onclick = run;
+$("again").onclick = run;
+$("dl").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(stripBlob); a.download = "mavro-photobooth.jpg"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+initCam();
+</script>
+</body>
+</html>
